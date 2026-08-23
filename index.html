@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>나만의 비밀 다이어리</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    body {
+      background-color: #f4f6f9;
+      color: #333;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 30px 15px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 600px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    header h1 {
+      font-size: 1.8rem;
+      color: #2c3e50;
+      margin-bottom: 6px;
+    }
+
+    .diary-form {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      margin-bottom: 25px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="date"], select, input[type="text"], textarea {
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 0.95rem;
+      outline: none;
+      background-color: #f8fafc;
+    }
+
+    input[type="date"] { flex: 2; }
+    select { flex: 1; }
+
+    textarea {
+      height: 100px;
+      resize: vertical;
+    }
+
+    button.save-btn {
+      background-color: #4f46e5;
+      color: #ffffff;
+      border: none;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button.save-btn:hover {
+      background-color: #4338ca;
+    }
+
+    .diary-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .diary-card {
+      background: #ffffff;
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 5px solid #4f46e5;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      position: relative;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .card-date {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+
+    .card-content {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #334155;
+      white-space: pre-wrap;
+    }
+
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .empty-msg {
+      text-align: center;
+      color: #94a3b8;
+      padding: 30px 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>📖 My Diary</h1>
+    </header>
+
+    <div class="diary-form">
+      <div class="input-row">
+        <input type="date" id="diaryDate">
+        <select id="diaryMood">
+          <option value="😊">😊 기쁨</option>
+          <option value="🌿">🌿 평온</option>
+          <option value="🔥">🔥 열정</option>
+          <option value="☁️">☁️ 우울</option>
+        </select>
+      </div>
+      <input type="text" id="diaryTitle" placeholder="제목을 입력하세요" maxlength="50">
+      <textarea id="diaryContent" placeholder="오늘 어떤 일이 있었나요?"></textarea>
+      <button type="button" class="save-btn" id="saveBtn">저장하기</button>
+    </div>
+
+    <div class="diary-list" id="diaryList"></div>
+  </div>
+
+  <script>
+    // 브라우저 저장소가 막혀도 동작하도록 메모리 배열 생성
+    let diaryData = [];
+
+    // 안전하게 저장소 데이터 가져오기
+    function getStoredData() {
+      try {
+        const data = localStorage.getItem('myDiariesData');
+        return data ? JSON.parse(data) : [];
+      } catch (e) {
+        return diaryData;
+      }
+    }
+
+    // 안전하게 저장소에 데이터 쓰기
+    function setStoredData(data) {
+      diaryData = data;
+      try {
+        localStorage.setItem('myDiariesData', JSON.stringify(data));
+      } catch (e) {
+        console.warn('LocalStorage 저장 불가 - 메모리에만 유지됩니다.');
+      }
+    }
+
+    // 초기화 함수
+    window.onload = function() {
+      const dateInput = document.getElementById('diaryDate');
+      if (dateInput) {
+        dateInput.value = new Date().toISOString().substring(0, 10);
+      }
+
+      document.getElementById('saveBtn').onclick = handleSave;
+      renderList();
+    };
+
+    // 저장 처리 함수
+    function handleSave() {
+      const date = document.getElementById('diaryDate').value;
+      const mood = document.getElementById('diaryMood').value;
+      const title = document.getElementById('diaryTitle').value.trim();
+      const content = document.getElementById('diaryContent').value.trim();
+
+      if (!date || !title || !content) {
+        alert('날짜, 제목, 내용을 입력해주세요!');
+        return;
+      }
+
+      const newItem = {
+        id: Date.now(),
+        date: date,
+        mood: mood,
+        title: title,
+        content: content
+      };
+
+      const currentList = getStoredData();
+      currentList.unshift(newItem);
+      setStoredData(currentList);
+
+      document.getElementById('diaryTitle').value = '';
+      document.getElementById('diaryContent').value = '';
+
+      renderList();
+      alert('저장되었습니다!');
+    }
+
+    // 목록 출력 함수
+    function renderList() {
+      const listContainer = document.getElementById('diaryList');
+      const currentList = getStoredData();
+
+      listContainer.innerHTML = '';
+
+      if (currentList.length === 0) {
+        listContainer.innerHTML = '<div class="empty-msg">작성된 일기가 없습니다.</div>';
+        return;
+      }
+
+      currentList.forEach(function(item) {
+        const card = document.createElement('div');
+        card.className = 'diary-card';
+        card.innerHTML = `
+          <div class="card-header">
+            <span class="card-date">${item.date} ${item.mood}</span>
+            <button type="button" class="delete-btn" onclick="handleDelete(${item.id})">삭제</button>
+          </div>
+          <div class="card-title">${escapeTxt(item.title)}</div>
+          <div class="card-content">${escapeTxt(item.content)}</div>
+        `;
+        listContainer.appendChild(card);
+      });
+    }
+
+    // 삭제 처리 함수
+    window.handleDelete = function(id) {
+      if (!confirm('삭제하시겠습니까?')) return;
+      const currentList = getStoredData();
+      const filteredList = currentList.filter(function(item) {
+        return item.id !== id;
+      });
+      setStoredData(filteredList);
+      renderList();
+    };
+
+    // 보안 텍스트 변환
+    function escapeTxt(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
