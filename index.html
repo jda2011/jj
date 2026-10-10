@@ -5,316 +5,330 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>나만의 다이어리 & 메모장</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <!-- Firebase SDK (v10 모듈러 버전) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addFirestore, addDoc, getDocs, deleteDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // TODO: 본인의 Firebase 설정값으로 변경하세요
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Firebase 초기화
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let isSignUpMode = false;
+    let currentUser = null;
+
+    // 전역 함수로 등록하여 HTML 이벤트에서 호출 가능하도록 설정
+    window.togglePassword = function(elementId, icon) {
+      const input = document.getElementById(elementId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerText = '🙈';
+      } else {
+        input.type = 'password';
+        icon.innerText = '👁️';
+      }
+    };
+
+    window.toggleAuthMode = function() {
+      isSignUpMode = !isSignUpMode;
+      const title = document.getElementById('authTitle');
+      const btn = document.getElementById('authSubmitBtn');
+      const toggleText = document.getElementById('authToggleText');
+
+      if (isSignUpMode) {
+        title.innerText = '회원가입';
+        btn.innerText = '가입하기';
+        toggleText.innerText = '이미 계정이 있으신가요? 로그인하기';
+      } else {
+        title.innerText = '로그인';
+        btn.innerText = '로그인';
+        toggleText.innerText = '계정이 없으신가요? 회원가입하기';
+      }
+    };
+
+    window.handleAuth = async function() {
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value.trim();
+
+      if (!email || !password) {
+        alert('이메일과 비밀번호를 입력해주세요!');
+        return;
+      }
+
+      try {
+        if (isSignUpMode) {
+          await createUserWithEmailAndPassword(auth, email, password);
+          alert('회원가입 성공! 로그인해주세요.');
+          window.toggleAuthMode();
+        } else {
+          await signInWithEmailAndPassword(auth, email, password);
+        }
+      } catch (error) {
+        alert('인증 실패: ' + error.message);
+      }
+    };
+
+    window.handleLogout = async function() {
+      await signOut(auth);
+    };
+
+    // 인증 상태 감지
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('authContainer').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        document.getElementById('userEmailDisplay').innerText = user.email + '님';
+        window.goHome();
+      } else {
+        currentUser = null;
+        document.getElementById('authContainer').style.display = 'block';
+        document.getElementById('appContainer').style.display = 'none';
+      }
+    });
+
+    window.switchTab = function(tabName) {
+      const diarySec = document.getElementById('diarySection');
+      const memoSec = document.getElementById('memoSection');
+      const buttons = document.querySelectorAll('.tab-btn');
+
+      buttons.forEach(btn => btn.classList.remove('active'));
+      if (tabName === 'diary') {
+        diarySec.classList.add('active');
+        memoSec.classList.remove('active');
+        buttons[0].classList.add('active');
+      } else {
+        memoSec.classList.add('active');
+        diarySec.classList.remove('active');
+        buttons[1].classList.add('active');
+      }
+    };
+
+    window.goHome = function() {
+      document.getElementById('mainView').style.display = 'block';
+      document.getElementById('detailView').style.display = 'none';
+      loadFiles('diaries', 'diaryGrid');
+      loadFiles('memos', 'memoGrid');
+    };
+
+    // 다이어리 저장
+    window.saveDiary = async function() {
+      if (!currentUser) return;
+      const date = document.getElementById('diaryDate').value;
+      const title = document.getElementById('diaryTitle').value.trim();
+      const content = document.getElementById('diaryContent').value.trim();
+      const password = document.getElementById('diaryPassword').value.trim();
+
+      if (!date || !title || !content) {
+        alert('날짜, 제목, 내용을 입력해주세요!');
+        return;
+      }
+
+      try {
+        await addDoc(collection(db, 'diaries'), {
+          userId: currentUser.uid,
+          type: 'diary',
+          date,
+          title,
+          content,
+          password,
+          createdAt: Date.now()
+        });
+        document.getElementById('diaryTitle').value = '';
+        document.getElementById('diaryContent').value = '';
+        document.getElementById('diaryPassword').value = '';
+        window.goHome();
+        alert('다이어리 파일이 생성되었습니다!');
+      } catch (e) {
+        alert('저장 실패: ' + e.message);
+      }
+    };
+
+    // 메모 저장
+    window.saveMemo = async function() {
+      if (!currentUser) return;
+      const title = document.getElementById('memoTitle').value.trim();
+      const content = document.getElementById('memoContent').value.trim();
+      const password = document.getElementById('memoPassword').value.trim();
+
+      if (!title || !content) {
+        alert('제목과 내용을 입력해주세요!');
+        return;
+      }
+
+      const time = new Date().toLocaleString();
+      try {
+        await addDoc(collection(db, 'memos'), {
+          userId: currentUser.uid,
+          type: 'memo',
+          time,
+          title,
+          content,
+          password,
+          createdAt: Date.now()
+        });
+        document.getElementById('memoTitle').value = '';
+        document.getElementById('memoContent').value = '';
+        document.getElementById('memoPassword').value = '';
+        window.goHome();
+        alert('메모 파일이 생성되었습니다!');
+      } catch (e) {
+        alert('저장 실패: ' + e.message);
+      }
+    };
+
+    // 파일 목록 불러오기
+    async function loadFiles(collectionName, gridId) {
+      if (!currentUser) return;
+      const grid = document.getElementById(gridId);
+      grid.innerHTML = '<div class="empty-msg">불러오는 중...</div>';
+
+      try {
+        const q = query(collection(db, collectionName), where("userId", "==", currentUser.uid));
+        const querySnapshot = await getDocs(q);
+        
+        grid.innerHTML = '';
+        if (querySnapshot.empty) {
+          grid.innerHTML = `<div class="empty-msg">생성된 파일이 없습니다.</div>`;
+          return;
+        }
+
+        const items = [];
+        querySnapshot.forEach((docSnap) => {
+          items.push({ id: docSnap.id, ...docSnap.data() });
+        });
+
+        // 최신순 정렬
+        items.sort((a, b) => b.createdAt - a.createdAt);
+
+        items.forEach(item => {
+          const card = document.createElement('div');
+          card.className = `file-card ${collectionName === 'memos' ? 'memo-type' : ''}`;
+          card.innerHTML = `
+            ${item.password ? '<span class="lock-badge">🔒</span>' : ''}
+            <div class="file-icon">${collectionName === 'diaries' ? '📔' : '📝'}</div>
+            <div class="file-title">${escapeTxt(item.title)}</div>
+            <div class="file-meta">${item.date || item.time}</div>
+          `;
+          card.onclick = () => openFile(item, collectionName);
+          grid.appendChild(card);
+        });
+      } catch (e) {
+        grid.innerHTML = '<div class="empty-msg">데이터를 불러오지 못했습니다.</div>';
+      }
+    }
+
+    // 파일 열기 (비밀번호 체크)
+    window.openFile = function(item, collectionName) {
+      if (item.password) {
+        const inputPw = prompt('이 파일은 잠겨있습니다. 비밀번호를 입력하세요:');
+        if (inputPw !== item.password) {
+          alert('비밀번호가 틀렸습니다!');
+          return;
+        }
+      }
+
+      document.getElementById('mainView').style.display = 'none';
+      document.getElementById('detailView').style.display = 'block';
+
+      document.getElementById('detailTitleText').innerText = item.title;
+      document.getElementById('detailDateText').innerText = item.date || item.time;
+      document.getElementById('detailContentText').innerText = item.content;
+
+      document.getElementById('deleteFileBtn').onclick = () => deleteFile(item.id, collectionName);
+    };
+
+    window.deleteFile = async function(id, collectionName) {
+      if (!confirm('정말 이 파일을 삭제하시겠습니까?')) return;
+      try {
+        await deleteDoc(doc(db, collectionName, id));
+        window.goHome();
+      } catch (e) {
+        alert('삭제 실패: ' + e.message);
+      }
+    };
+
+    function escapeTxt(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    // 오늘 날짜 기본 세팅
+    window.addEventListener('DOMContentLoaded', () => {
+      const dateInput = document.getElementById('diaryDate');
+      if (dateInput) {
+        dateInput.value = new Date().toISOString().substring(0, 10);
+      }
+    });
+  </script>
+
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif; }
+    body { background-color: #f4f6f9; color: #333; display: flex; justify-content: center; min-height: 100vh; padding: 30px 15px; }
+    .container { width: 100%; max-width: 700px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    header h1 { font-size: 1.6rem; color: #2c3e50; cursor: pointer; }
+    .user-info { font-size: 0.9rem; color: #64748b; display: flex; align-items: center; gap: 10px; }
+    .logout-btn { background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+    
+    #authContainer { background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); text-align: center; max-width: 450px; margin: 50px auto; }
+    #authContainer h2 { margin-bottom: 20px; color: #1e293b; }
+    .auth-form { display: flex; flex-direction: column; gap: 12px; }
+    
+    .password-wrapper { position: relative; display: flex; align-items: center; }
+    .password-wrapper input { width: 100%; padding-right: 40px; }
+    .eye-icon { position: absolute; right: 12px; cursor: pointer; font-size: 1.1rem; user-select: none; }
 
-    body {
-      background-color: #f4f6f9;
-      color: #333;
-      display: flex;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 30px 15px;
-    }
+    #appContainer { display: none; }
+    .tab-menu { display: flex; gap: 10px; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 12px; border: none; background-color: #e2e8f0; color: #64748b; font-size: 1rem; font-weight: 600; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+    .tab-btn.active { background-color: #4f46e5; color: #ffffff; }
 
-    .container {
-      width: 100%;
-      max-width: 700px;
-    }
+    .section-content { display: none; }
+    .section-content.active { display: block; }
 
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-    }
+    .form-box { background: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; }
+    input[type="email"], input[type="password"], input[type="date"], input[type="text"], textarea { border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; font-size: 0.95rem; outline: none; background-color: #f8fafc; }
+    input:focus, textarea:focus { border-color: #4f46e5; background-color: #fff; }
+    textarea { height: 120px; resize: vertical; line-height: 1.5; }
 
-    header h1 {
-      font-size: 1.6rem;
-      color: #2c3e50;
-      cursor: pointer;
-    }
+    .action-btn { background-color: #4f46e5; color: #ffffff; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+    .action-btn:hover { background-color: #4338ca; }
+    .sub-btn { background-color: #0ea5e9; }
+    .sub-btn:hover { background-color: #0284c7; }
+    .back-btn { background-color: #64748b; margin-bottom: 15px; }
+    .back-btn:hover { background-color: #475569; }
 
-    .user-info {
-      font-size: 0.9rem;
-      color: #64748b;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+    .file-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
+    .file-card { background: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); cursor: pointer; border-top: 5px solid #4f46e5; transition: transform 0.2s, box-shadow 0.2s; position: relative; }
+    .file-card.memo-type { border-top-color: #0ea5e9; }
+    .file-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08); }
+    .file-icon { font-size: 1.8rem; margin-bottom: 10px; }
+    .file-title { font-size: 1.05rem; font-weight: 700; color: #0f172a; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-meta { font-size: 0.8rem; color: #64748b; }
+    .lock-badge { position: absolute; top: 15px; right: 15px; font-size: 0.9rem; }
 
-    .logout-btn {
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.8rem;
-    }
+    #detailView { display: none; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); }
+    .detail-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 15px; }
+    .detail-title { font-size: 1.3rem; font-weight: bold; color: #1e293b; }
+    .detail-date { font-size: 0.85rem; color: #64748b; }
+    .detail-content { font-size: 1rem; line-height: 1.6; color: #334155; white-space: pre-wrap; min-height: 150px; }
+    .delete-btn { background: #ef4444; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-top: 20px; }
 
-    /* 인증 화면 */
-    #authContainer {
-      background: #ffffff;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      text-align: center;
-      max-width: 450px;
-      margin: 50px auto;
-    }
-
-    #authContainer h2 {
-      margin-bottom: 20px;
-      color: #1e293b;
-    }
-
-    .auth-form {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* 비밀번호 입력 Wrapper (눈 아이콘 포함) */
-    .password-wrapper {
-      position: relative;
-      display: flex;
-      align-items: center;
-    }
-
-    .password-wrapper input {
-      width: 100%;
-      padding-right: 40px;
-    }
-
-    .eye-icon {
-      position: absolute;
-      right: 12px;
-      cursor: pointer;
-      font-size: 1.1rem;
-      user-select: none;
-    }
-
-    /* 메인 앱 화면 */
-    #appContainer {
-      display: none;
-    }
-
-    .tab-menu {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 20px;
-    }
-
-    .tab-btn {
-      flex: 1;
-      padding: 12px;
-      border: none;
-      background-color: #e2e8f0;
-      color: #64748b;
-      font-size: 1rem;
-      font-weight: 600;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: 0.2s;
-    }
-
-    .tab-btn.active {
-      background-color: #4f46e5;
-      color: #ffffff;
-    }
-
-    .section-content {
-      display: none;
-    }
-
-    .section-content.active {
-      display: block;
-    }
-
-    .form-box {
-      background: #ffffff;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-bottom: 25px;
-    }
-
-    input[type="email"], input[type="password"], input[type="date"], input[type="text"], textarea {
-      border: 1px solid #cbd5e1;
-      border-radius: 8px;
-      padding: 12px;
-      font-size: 0.95rem;
-      outline: none;
-      background-color: #f8fafc;
-    }
-
-    input:focus, textarea:focus {
-      border-color: #4f46e5;
-      background-color: #fff;
-    }
-
-    textarea {
-      height: 120px;
-      resize: vertical;
-      line-height: 1.5;
-    }
-
-    .action-btn {
-      background-color: #4f46e5;
-      color: #ffffff;
-      border: none;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s;
-    }
-
-    .action-btn:hover {
-      background-color: #4338ca;
-    }
-
-    .sub-btn {
-      background-color: #0ea5e9;
-    }
-    .sub-btn:hover {
-      background-color: #0284c7;
-    }
-
-    .back-btn {
-      background-color: #64748b;
-      margin-bottom: 15px;
-    }
-    .back-btn:hover {
-      background-color: #475569;
-    }
-
-    /* 파일 카드 그리드 형태 (보기 편하게 변경) */
-    .file-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 15px;
-    }
-
-    .file-card {
-      background: #ffffff;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-      cursor: pointer;
-      border-top: 5px solid #4f46e5;
-      transition: transform 0.2s, box-shadow 0.2s;
-      position: relative;
-    }
-
-    .file-card.memo-type {
-      border-top-color: #0ea5e9;
-    }
-
-    .file-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
-    }
-
-    .file-icon {
-      font-size: 1.8rem;
-      margin-bottom: 10px;
-    }
-
-    .file-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #0f172a;
-      margin-bottom: 6px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .file-meta {
-      font-size: 0.8rem;
-      color: #64748b;
-    }
-
-    .lock-badge {
-      position: absolute;
-      top: 15px;
-      right: 15px;
-      font-size: 0.9rem;
-    }
-
-    /* 상세 보기 화면 */
-    #detailView {
-      display: none;
-      background: #ffffff;
-      padding: 25px;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-
-    .detail-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid #e2e8f0;
-      padding-bottom: 15px;
-      margin-bottom: 15px;
-    }
-
-    .detail-title {
-      font-size: 1.3rem;
-      font-weight: bold;
-      color: #1e293b;
-    }
-
-    .detail-date {
-      font-size: 0.85rem;
-      color: #64748b;
-    }
-
-    .detail-content {
-      font-size: 1rem;
-      line-height: 1.6;
-      color: #334155;
-      white-space: pre-wrap;
-      min-height: 150px;
-    }
-
-    .delete-btn {
-      background: #ef4444;
-      color: white;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      cursor: pointer;
-      margin-top: 20px;
-    }
-
-    .empty-msg {
-      text-align: center;
-      color: #94a3b8;
-      padding: 40px 0;
-      grid-column: 1 / -1;
-    }
-
-    .auth-toggle {
-      margin-top: 15px;
-      font-size: 0.9rem;
-      color: #4f46e5;
-      cursor: pointer;
-    }
+    .empty-msg { text-align: center; color: #94a3b8; padding: 40px 0; grid-column: 1 / -1; }
+    .auth-toggle { margin-top: 15px; font-size: 0.9rem; color: #4f46e5; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -403,270 +417,5 @@
 
   </div>
 
-  <script>
-    // --- Supabase 설정 (연결 전 임시 플레이스홀더) ---
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    let isSignUpMode = false;
-    let currentUser = null;
-    let currentOpenItem = null;
-
-    // 비밀번호 보이기/숨기기 토글 함수
-    function togglePassword(elementId, icon) {
-      const input = document.getElementById(elementId);
-      if (input.type === 'password') {
-        input.type = 'text';
-        icon.innerText = '🙈';
-      } else {
-        input.type = 'password';
-        icon.innerText = '👁️';
-      }
-    }
-
-    window.onload = async function() {
-      const dateInput = document.getElementById('diaryDate');
-      if (dateInput) {
-        dateInput.value = new Date().toISOString().substring(0, 10);
-      }
-
-      // (임시 테스트용 세션 체크 코드)
-      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
-      if (session) {
-        currentUser = session.user;
-        showApp();
-      } else {
-        // 테스트를 위해 바로 UI를 보고 싶다면 아래 주석을 풀고 사용하세요.
-        // showApp(); 
-        showAuth();
-      }
-    };
-
-    function toggleAuthMode() {
-      isSignUpMode = !isSignUpMode;
-      const title = document.getElementById('authTitle');
-      const btn = document.getElementById('authSubmitBtn');
-      const toggleText = document.getElementById('authToggleText');
-
-      if (isSignUpMode) {
-        title.innerText = '회원가입';
-        btn.innerText = '가입하기';
-        toggleText.innerText = '이미 계정이 있으신가요? 로그인하기';
-      } else {
-        title.innerText = '로그인';
-        btn.innerText = '로그인';
-        toggleText.innerText = '계정이 없으신가요? 회원가입하기';
-      }
-    }
-
-    async function handleAuth() {
-      const email = document.getElementById('authEmail').value.trim();
-      const password = document.getElementById('authPassword').value.trim();
-
-      if (!email || !password) {
-        alert('이메일과 비밀번호를 입력해주세요!');
-        return;
-      }
-
-      if (isSignUpMode) {
-        const { error } = await supabase.auth.signUp({ email, password });
-        if (error) alert('가입 실패: ' + error.message);
-        else { alert('회원가입 성공! 로그인해주세요.'); toggleAuthMode(); }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) alert('로그인 실패: ' + error.message);
-        else showApp();
-      }
-    }
-
-    async function handleLogout() {
-      await supabase.auth.signOut();
-      showAuth();
-    }
-
-    function showAuth() {
-      document.getElementById('authContainer').style.display = 'block';
-      document.getElementById('appContainer').style.display = 'none';
-    }
-
-    function showApp() {
-      document.getElementById('authContainer').style.display = 'none';
-      document.getElementById('appContainer').style.display = 'block';
-      if(currentUser) {
-        document.getElementById('userEmailDisplay').innerText = currentUser.email + '님';
-      } else {
-        document.getElementById('userEmailDisplay').innerText = '테스트 모드';
-      }
-      goHome();
-    }
-
-    function switchTab(tabName) {
-      const diarySec = document.getElementById('diarySection');
-      const memoSec = document.getElementById('memoSection');
-      const buttons = document.querySelectorAll('.tab-btn');
-
-      buttons.forEach(btn => btn.classList.remove('active'));
-      if (tabName === 'diary') {
-        diarySec.classList.add('active');
-        memoSec.classList.remove('active');
-        buttons[0].classList.add('active');
-      } else {
-        memoSec.classList.add('active');
-        diarySec.classList.remove('active');
-        buttons[1].classList.add('active');
-      }
-    }
-
-    function goHome() {
-      document.getElementById('mainView').style.display = 'block';
-      document.getElementById('detailView').style.display = 'none';
-      loadDiaries();
-      loadMemos();
-    }
-
-    // --- 다이어리 로직 ---
-    async function saveDiary() {
-      const date = document.getElementById('diaryDate').value;
-      const title = document.getElementById('diaryTitle').value.trim();
-      const content = document.getElementById('diaryContent').value.trim();
-      const password = document.getElementById('diaryPassword').value.trim();
-
-      if (!date || !title || !content) {
-        alert('날짜, 제목, 내용을 입력해주세요!');
-        return;
-      }
-
-      // Supabase 연동 전 로컬 테스트용 스토리지 저장 (Supabase 연결시 대체됨)
-      const list = getLocal('myDiaries');
-      list.unshift({ id: Date.now(), type: 'diary', date, title, content, password });
-      setLocal('myDiaries', list);
-
-      document.getElementById('diaryTitle').value = '';
-      document.getElementById('diaryContent').value = '';
-      document.getElementById('diaryPassword').value = '';
-      goHome();
-      alert('다이어리 파일이 생성되었습니다!');
-    }
-
-    function loadDiaries() {
-      const grid = document.getElementById('diaryGrid');
-      const list = getLocal('myDiaries');
-      grid.innerHTML = '';
-
-      if (list.length === 0) {
-        grid.innerHTML = '<div class="empty-msg">생성된 다이어리 파일이 없습니다.</div>';
-        return;
-      }
-
-      list.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'file-card';
-        card.innerHTML = `
-          ${item.password ? '<span class="lock-badge">🔒</span>' : ''}
-          <div class="file-icon">📔</div>
-          <div class="file-title">${escapeTxt(item.title)}</div>
-          <div class="file-meta">${item.date}</div>
-        `;
-        card.onclick = () => openFile(item);
-        grid.appendChild(card);
-      });
-    }
-
-    // --- 메모장 로직 ---
-    async function saveMemo() {
-      const title = document.getElementById('memoTitle').value.trim();
-      const content = document.getElementById('memoContent').value.trim();
-      const password = document.getElementById('memoPassword').value.trim();
-
-      if (!title || !content) {
-        alert('제목과 내용을 입력해주세요!');
-        return;
-      }
-
-      const time = new Date().toLocaleString();
-      const list = getLocal('myMemos');
-      list.unshift({ id: Date.now(), type: 'memo', time, title, content, password });
-      setLocal('myMemos', list);
-
-      document.getElementById('memoTitle').value = '';
-      document.getElementById('memoContent').value = '';
-      document.getElementById('memoPassword').value = '';
-      goHome();
-      alert('메모 파일이 생성되었습니다!');
-    }
-
-    function loadMemos() {
-      const grid = document.getElementById('memoGrid');
-      const list = getLocal('myMemos');
-      grid.innerHTML = '';
-
-      if (list.length === 0) {
-        grid.innerHTML = '<div class="empty-msg">생성된 메모 파일이 없습니다.</div>';
-        return;
-      }
-
-      list.forEach(item => {
-        const card = document.createElement('div');
-        card.className = 'file-card memo-type';
-        card.innerHTML = `
-          ${item.password ? '<span class="lock-badge">🔒</span>' : ''}
-          <div class="file-icon">📝</div>
-          <div class="file-title">${escapeTxt(item.title)}</div>
-          <div class="file-meta">${item.time}</div>
-        `;
-        card.onclick = () => openFile(item);
-        grid.appendChild(card);
-      });
-    }
-
-    // 파일 열기 (비밀번호가 있으면 확인 후 상세 보기로 이동)
-    function openFile(item) {
-      if (item.password) {
-        const inputPw = prompt('이 파일은 잠겨있습니다. 비밀번호를 입력하세요:');
-        if (inputPw !== item.password) {
-          alert('비밀번호가 틀렸습니다!');
-          return;
-        }
-      }
-
-      currentOpenItem = item;
-      document.getElementById('mainView').style.display = 'none';
-      document.getElementById('detailView').style.display = 'block';
-
-      document.getElementById('detailTitleText').innerText = item.title;
-      document.getElementById('detailDateText').innerText = item.date || item.time;
-      document.getElementById('detailContentText').innerText = item.content;
-
-      document.getElementById('deleteFileBtn').onclick = () => deleteFile(item.id, item.type);
-    }
-
-    function deleteFile(id, type) {
-      if (!confirm('정말 이 파일을 삭제하시겠습니까?')) return;
-
-      if (type === 'diary') {
-        let list = getLocal('myDiaries');
-        list = list.filter(i => i.id !== id);
-        setLocal('myDiaries', list);
-      } else {
-        let list = getLocal('myMemos');
-        list = list.filter(i => i.id !== id);
-        setLocal('myMemos', list);
-      }
-      goHome();
-    }
-
-    // 로컬 스토리지 유틸
-    function getLocal(key) {
-      try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; }
-    }
-    function setLocal(key, data) {
-      try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
-    }
-
-    function escapeTxt(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    }
-  </script>
 </body>
 </html>
