@@ -12,15 +12,16 @@
     import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
     import { getFirestore, collection, addFirestore, addDoc, getDocs, deleteDoc, doc, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // TODO: 본인의 Firebase 설정값으로 변경하세요
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyBeMb29t82D_G47tzVhnJH1Ekuv221Vsg0",
+  authDomain: "memo-d29dc.firebaseapp.com",
+  projectId: "memo-d29dc",
+  storageBucket: "memo-d29dc.firebasestorage.app",
+  messagingSenderId: "383600682610",
+  appId: "1:383600682610:web:dfa3dd8602e6b0fe4304eb",
+  measurementId: "G-D2S2B4WTLL"
+};
 
     // Firebase 초기화
     const app = initializeApp(firebaseConfig);
