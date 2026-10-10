@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>나만의 다이어리 & 메모장</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     * {
       box-sizing: border-box;
@@ -24,21 +25,87 @@
 
     .container {
       width: 100%;
-      max-width: 650px;
+      max-width: 700px;
     }
 
     header {
-      text-align: center;
-      margin-bottom: 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
     }
 
     header h1 {
-      font-size: 1.8rem;
+      font-size: 1.6rem;
       color: #2c3e50;
-      margin-bottom: 6px;
+      cursor: pointer;
     }
 
-    /* 탭 메뉴 디자인 */
+    .user-info {
+      font-size: 0.9rem;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logout-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.8rem;
+    }
+
+    /* 인증 화면 */
+    #authContainer {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      text-align: center;
+      max-width: 450px;
+      margin: 50px auto;
+    }
+
+    #authContainer h2 {
+      margin-bottom: 20px;
+      color: #1e293b;
+    }
+
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* 비밀번호 입력 Wrapper (눈 아이콘 포함) */
+    .password-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .password-wrapper input {
+      width: 100%;
+      padding-right: 40px;
+    }
+
+    .eye-icon {
+      position: absolute;
+      right: 12px;
+      cursor: pointer;
+      font-size: 1.1rem;
+      user-select: none;
+    }
+
+    /* 메인 앱 화면 */
+    #appContainer {
+      display: none;
+    }
+
     .tab-menu {
       display: flex;
       gap: 10px;
@@ -55,7 +122,7 @@
       font-weight: 600;
       border-radius: 8px;
       cursor: pointer;
-      transition: background-color 0.2s, color 0.2s;
+      transition: 0.2s;
     }
 
     .tab-btn.active {
@@ -68,12 +135,9 @@
     }
 
     .section-content.active {
-      display: flex;
-      flex-direction: column;
-      gap: 15px;
+      display: block;
     }
 
-    /* 입력 폼 공통 스타일 */
     .form-box {
       background: #ffffff;
       padding: 20px;
@@ -82,9 +146,10 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
+      margin-bottom: 25px;
     }
 
-    input[type="date"], input[type="text"], textarea {
+    input[type="email"], input[type="password"], input[type="date"], input[type="text"], textarea {
       border: 1px solid #cbd5e1;
       border-radius: 8px;
       padding: 12px;
@@ -93,7 +158,7 @@
       background-color: #f8fafc;
     }
 
-    input[type="date"]:focus, input[type="text"]:focus, textarea:focus {
+    input:focus, textarea:focus {
       border-color: #4f46e5;
       background-color: #fff;
     }
@@ -120,114 +185,328 @@
       background-color: #4338ca;
     }
 
-    /* 카드 리스트 디자인 */
-    .card-list {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 15px;
+    .sub-btn {
+      background-color: #0ea5e9;
+    }
+    .sub-btn:hover {
+      background-color: #0284c7;
     }
 
-    .card {
+    .back-btn {
+      background-color: #64748b;
+      margin-bottom: 15px;
+    }
+    .back-btn:hover {
+      background-color: #475569;
+    }
+
+    /* 파일 카드 그리드 형태 (보기 편하게 변경) */
+    .file-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+    }
+
+    .file-card {
       background: #ffffff;
-      padding: 18px;
+      padding: 20px;
       border-radius: 10px;
-      border-left: 5px solid #4f46e5;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      cursor: pointer;
+      border-top: 5px solid #4f46e5;
+      transition: transform 0.2s, box-shadow 0.2s;
       position: relative;
     }
 
-    .card.memo-card {
-      border-left-color: #0ea5e9; /* 메모장은 푸른색 계열 포인트 */
+    .file-card.memo-type {
+      border-top-color: #0ea5e9;
     }
 
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 8px;
+    .file-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.08);
     }
 
-    .card-date, .card-time {
-      font-size: 0.82rem;
-      color: #64748b;
+    .file-icon {
+      font-size: 1.8rem;
+      margin-bottom: 10px;
     }
 
-    .card-title {
+    .file-title {
       font-size: 1.05rem;
       font-weight: 700;
       color: #0f172a;
       margin-bottom: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    .card-content {
-      font-size: 0.95rem;
-      line-height: 1.5;
+    .file-meta {
+      font-size: 0.8rem;
+      color: #64748b;
+    }
+
+    .lock-badge {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      font-size: 0.9rem;
+    }
+
+    /* 상세 보기 화면 */
+    #detailView {
+      display: none;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 15px;
+      margin-bottom: 15px;
+    }
+
+    .detail-title {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #1e293b;
+    }
+
+    .detail-date {
+      font-size: 0.85rem;
+      color: #64748b;
+    }
+
+    .detail-content {
+      font-size: 1rem;
+      line-height: 1.6;
       color: #334155;
       white-space: pre-wrap;
+      min-height: 150px;
     }
 
     .delete-btn {
       background: #ef4444;
       color: white;
       border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.75rem;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
       cursor: pointer;
+      margin-top: 20px;
     }
 
     .empty-msg {
       text-align: center;
       color: #94a3b8;
-      padding: 30px 0;
+      padding: 40px 0;
+      grid-column: 1 / -1;
+    }
+
+    .auth-toggle {
+      margin-top: 15px;
+      font-size: 0.9rem;
+      color: #4f46e5;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
 
   <div class="container">
-    <header>
-      <h1>📖 나의 공간</h1>
-    </header>
-
-    <!-- 탭 전환 버튼 -->
-    <div class="tab-menu">
-      <button type="button" class="tab-btn active" onclick="switchTab('diary')">다이어리</button>
-      <button type="button" class="tab-btn" onclick="switchTab('memo')">메모장</button>
-    </div>
-
-    <!-- 1. 다이어리 섹션 -->
-    <div id="diarySection" class="section-content active">
-      <div class="form-box">
-        <input type="date" id="diaryDate">
-        <input type="text" id="diaryTitle" placeholder="다이어리 제목을 입력하세요" maxlength="50">
-        <textarea id="diaryContent" placeholder="오늘 하루는 어땠나요? 기록해 보세요."></textarea>
-        <button type="button" class="action-btn" onclick="saveDiary()">다이어리 저장</button>
+    
+    <!-- 1. 로그인 / 회원가입 화면 -->
+    <div id="authContainer">
+      <h2 id="authTitle">로그인</h2>
+      <div class="auth-form">
+        <input type="email" id="authEmail" placeholder="이메일 주소">
+        <div class="password-wrapper">
+          <input type="password" id="authPassword" placeholder="비밀번호">
+          <span class="eye-icon" onclick="togglePassword('authPassword', this)">👁️</span>
+        </div>
+        <button type="button" class="action-btn" id="authSubmitBtn" onclick="handleAuth()">로그인</button>
+        <div class="auth-toggle" onclick="toggleAuthMode()" id="authToggleText">계정이 없으신가요? 회원가입하기</div>
       </div>
-      <div class="card-list" id="diaryList"></div>
     </div>
 
-    <!-- 2. 메모장 섹션 -->
-    <div id="memoSection" class="section-content">
-      <div class="form-box">
-        <input type="text" id="memoTitle" placeholder="메모 제목 (예: 장보기 리스트, 아이디어)" maxlength="50">
-        <textarea id="memoContent" placeholder="자유롭게 메모를 남겨보세요."></textarea>
-        <button type="button" class="action-btn" style="background-color: #0ea5e9;" onclick="saveMemo()">메모 저장</button>
+    <!-- 2. 메인 앱 화면 -->
+    <div id="appContainer">
+      <header>
+        <h1 onclick="goHome()">📖 나의 공간</h1>
+        <div class="user-info">
+          <span id="userEmailDisplay"></span>
+          <button type="button" class="logout-btn" onclick="handleLogout()">로그아웃</button>
+        </div>
+      </header>
+
+      <!-- 목록 및 작성 영역 -->
+      <div id="mainView">
+        <div class="tab-menu">
+          <button type="button" class="tab-btn active" onclick="switchTab('diary')">다이어리</button>
+          <button type="button" class="tab-btn" onclick="switchTab('memo')">메모장</button>
+        </div>
+
+        <!-- 다이어리 섹션 -->
+        <div id="diarySection" class="section-content active">
+          <div class="form-box">
+            <h3>새 다이어리 파일 만들기</h3>
+            <input type="date" id="diaryDate">
+            <input type="text" id="diaryTitle" placeholder="다이어리 제목" maxlength="50">
+            <textarea id="diaryContent" placeholder="오늘 하루는 어땠나요? 기록해 보세요."></textarea>
+            <div class="password-wrapper">
+              <input type="password" id="diaryPassword" placeholder="파일 잠금 비밀번호 (선택사항 - 비워두면 공개)">
+              <span class="eye-icon" onclick="togglePassword('diaryPassword', this)">👁️</span>
+            </div>
+            <button type="button" class="action-btn" onclick="saveDiary()">다이어리 파일 생성</button>
+          </div>
+          <h3>나의 다이어리 파일 목록</h3>
+          <div class="file-grid" id="diaryGrid"></div>
+        </div>
+
+        <!-- 메모장 섹션 -->
+        <div id="memoSection" class="section-content">
+          <div class="form-box">
+            <h3>새 메모 파일 만들기</h3>
+            <input type="text" id="memoTitle" placeholder="메모 제목 (예: 장보기 리스트)" maxlength="50">
+            <textarea id="memoContent" placeholder="자유롭게 메모를 남겨보세요."></textarea>
+            <div class="password-wrapper">
+              <input type="password" id="memoPassword" placeholder="파일 잠금 비밀번호 (선택사항 - 비워두면 공개)">
+              <span class="eye-icon" onclick="togglePassword('memoPassword', this)">👁️</span>
+            </div>
+            <button type="button" class="action-btn sub-btn" onclick="saveMemo()">메모 파일 생성</button>
+          </div>
+          <h3>나의 메모 파일 목록</h3>
+          <div class="file-grid" id="memoGrid"></div>
+        </div>
       </div>
-      <div class="card-list" id="memoList"></div>
+
+      <!-- 3. 상세 보기 화면 -->
+      <div id="detailView">
+        <button type="button" class="action-btn back-btn" onclick="goHome()">⬅️ 메인 화면으로</button>
+        <div class="detail-header">
+          <div>
+            <div class="detail-title" id="detailTitleText"></div>
+            <div class="detail-date" id="detailDateText"></div>
+          </div>
+        </div>
+        <div class="detail-content" id="detailContentText"></div>
+        <button type="button" class="delete-btn" id="deleteFileBtn">파일 삭제하기</button>
+      </div>
+
     </div>
+
   </div>
 
   <script>
-    // 탭 전환 기능
+    // --- Supabase 설정 (연결 전 임시 플레이스홀더) ---
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let isSignUpMode = false;
+    let currentUser = null;
+    let currentOpenItem = null;
+
+    // 비밀번호 보이기/숨기기 토글 함수
+    function togglePassword(elementId, icon) {
+      const input = document.getElementById(elementId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerText = '🙈';
+      } else {
+        input.type = 'password';
+        icon.innerText = '👁️';
+      }
+    }
+
+    window.onload = async function() {
+      const dateInput = document.getElementById('diaryDate');
+      if (dateInput) {
+        dateInput.value = new Date().toISOString().substring(0, 10);
+      }
+
+      // (임시 테스트용 세션 체크 코드)
+      const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+      if (session) {
+        currentUser = session.user;
+        showApp();
+      } else {
+        // 테스트를 위해 바로 UI를 보고 싶다면 아래 주석을 풀고 사용하세요.
+        // showApp(); 
+        showAuth();
+      }
+    };
+
+    function toggleAuthMode() {
+      isSignUpMode = !isSignUpMode;
+      const title = document.getElementById('authTitle');
+      const btn = document.getElementById('authSubmitBtn');
+      const toggleText = document.getElementById('authToggleText');
+
+      if (isSignUpMode) {
+        title.innerText = '회원가입';
+        btn.innerText = '가입하기';
+        toggleText.innerText = '이미 계정이 있으신가요? 로그인하기';
+      } else {
+        title.innerText = '로그인';
+        btn.innerText = '로그인';
+        toggleText.innerText = '계정이 없으신가요? 회원가입하기';
+      }
+    }
+
+    async function handleAuth() {
+      const email = document.getElementById('authEmail').value.trim();
+      const password = document.getElementById('authPassword').value.trim();
+
+      if (!email || !password) {
+        alert('이메일과 비밀번호를 입력해주세요!');
+        return;
+      }
+
+      if (isSignUpMode) {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) alert('가입 실패: ' + error.message);
+        else { alert('회원가입 성공! 로그인해주세요.'); toggleAuthMode(); }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) alert('로그인 실패: ' + error.message);
+        else showApp();
+      }
+    }
+
+    async function handleLogout() {
+      await supabase.auth.signOut();
+      showAuth();
+    }
+
+    function showAuth() {
+      document.getElementById('authContainer').style.display = 'block';
+      document.getElementById('appContainer').style.display = 'none';
+    }
+
+    function showApp() {
+      document.getElementById('authContainer').style.display = 'none';
+      document.getElementById('appContainer').style.display = 'block';
+      if(currentUser) {
+        document.getElementById('userEmailDisplay').innerText = currentUser.email + '님';
+      } else {
+        document.getElementById('userEmailDisplay').innerText = '테스트 모드';
+      }
+      goHome();
+    }
+
     function switchTab(tabName) {
       const diarySec = document.getElementById('diarySection');
       const memoSec = document.getElementById('memoSection');
       const buttons = document.querySelectorAll('.tab-btn');
 
       buttons.forEach(btn => btn.classList.remove('active'));
-
       if (tabName === 'diary') {
         diarySec.classList.add('active');
         memoSec.classList.remove('active');
@@ -239,144 +518,152 @@
       }
     }
 
-    // 초기화 및 로드
-    window.onload = function() {
-      const dateInput = document.getElementById('diaryDate');
-      if (dateInput) {
-        dateInput.value = new Date().toISOString().substring(0, 10);
-      }
-      renderDiaries();
-      renderMemos();
-    };
+    function goHome() {
+      document.getElementById('mainView').style.display = 'block';
+      document.getElementById('detailView').style.display = 'none';
+      loadDiaries();
+      loadMemos();
+    }
 
     // --- 다이어리 로직 ---
-    function saveDiary() {
+    async function saveDiary() {
       const date = document.getElementById('diaryDate').value;
       const title = document.getElementById('diaryTitle').value.trim();
       const content = document.getElementById('diaryContent').value.trim();
+      const password = document.getElementById('diaryPassword').value.trim();
 
       if (!date || !title || !content) {
-        alert('날짜, 제목, 내용을 모두 입력해주세요!');
+        alert('날짜, 제목, 내용을 입력해주세요!');
         return;
       }
 
-      const newItem = { id: Date.now(), date, title, content };
-      const list = getStorage('myDiaries');
-      list.unshift(newItem);
-      setStorage('myDiaries', list);
+      // Supabase 연동 전 로컬 테스트용 스토리지 저장 (Supabase 연결시 대체됨)
+      const list = getLocal('myDiaries');
+      list.unshift({ id: Date.now(), type: 'diary', date, title, content, password });
+      setLocal('myDiaries', list);
 
       document.getElementById('diaryTitle').value = '';
       document.getElementById('diaryContent').value = '';
-      renderDiaries();
-      alert('다이어리가 저장되었습니다!');
+      document.getElementById('diaryPassword').value = '';
+      goHome();
+      alert('다이어리 파일이 생성되었습니다!');
     }
 
-    function renderDiaries() {
-      const container = document.getElementById('diaryList');
-      const list = getStorage('myDiaries');
-      container.innerHTML = '';
+    function loadDiaries() {
+      const grid = document.getElementById('diaryGrid');
+      const list = getLocal('myDiaries');
+      grid.innerHTML = '';
 
       if (list.length === 0) {
-        container.innerHTML = '<div class="empty-msg">작성된 다이어리가 없습니다.</div>';
+        grid.innerHTML = '<div class="empty-msg">생성된 다이어리 파일이 없습니다.</div>';
         return;
       }
 
       list.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'card';
+        card.className = 'file-card';
         card.innerHTML = `
-          <div class="card-header">
-            <span class="card-date">${item.date}</span>
-            <button type="button" class="delete-btn" onclick="deleteDiary(${item.id})">삭제</button>
-          </div>
-          <div class="card-title">${escapeTxt(item.title)}</div>
-          <div class="card-content">${escapeTxt(item.content)}</div>
+          ${item.password ? '<span class="lock-badge">🔒</span>' : ''}
+          <div class="file-icon">📔</div>
+          <div class="file-title">${escapeTxt(item.title)}</div>
+          <div class="file-meta">${item.date}</div>
         `;
-        container.appendChild(card);
+        card.onclick = () => openFile(item);
+        grid.appendChild(card);
       });
-    }
-
-    function deleteDiary(id) {
-      if (!confirm('삭제하시겠습니까?')) return;
-      let list = getStorage('myDiaries');
-      list = list.filter(item => item.id !== id);
-      setStorage('myDiaries', list);
-      renderDiaries();
     }
 
     // --- 메모장 로직 ---
-    function saveMemo() {
+    async function saveMemo() {
       const title = document.getElementById('memoTitle').value.trim();
       const content = document.getElementById('memoContent').value.trim();
+      const password = document.getElementById('memoPassword').value.trim();
 
       if (!title || !content) {
-        alert('제목과 내용을 모두 입력해주세요!');
+        alert('제목과 내용을 입력해주세요!');
         return;
       }
 
-      const now = new Date().toLocaleString();
-      const newItem = { id: Date.now(), time: now, title, content };
-      const list = getStorage('myMemos');
-      list.unshift(newItem);
-      setStorage('myMemos', list);
+      const time = new Date().toLocaleString();
+      const list = getLocal('myMemos');
+      list.unshift({ id: Date.now(), type: 'memo', time, title, content, password });
+      setLocal('myMemos', list);
 
       document.getElementById('memoTitle').value = '';
       document.getElementById('memoContent').value = '';
-      renderMemos();
-      alert('메모가 저장되었습니다!');
+      document.getElementById('memoPassword').value = '';
+      goHome();
+      alert('메모 파일이 생성되었습니다!');
     }
 
-    function renderMemos() {
-      const container = document.getElementById('memoList');
-      const list = getStorage('myMemos');
-      container.innerHTML = '';
+    function loadMemos() {
+      const grid = document.getElementById('memoGrid');
+      const list = getLocal('myMemos');
+      grid.innerHTML = '';
 
       if (list.length === 0) {
-        container.innerHTML = '<div class="empty-msg">저장된 메모가 없습니다.</div>';
+        grid.innerHTML = '<div class="empty-msg">생성된 메모 파일이 없습니다.</div>';
         return;
       }
 
       list.forEach(item => {
         const card = document.createElement('div');
-        card.className = 'card memo-card';
+        card.className = 'file-card memo-type';
         card.innerHTML = `
-          <div class="card-header">
-            <span class="card-time">${item.time}</span>
-            <button type="button" class="delete-btn" onclick="deleteMemo(${item.id})">삭제</button>
-          </div>
-          <div class="card-title">${escapeTxt(item.title)}</div>
-          <div class="card-content">${escapeTxt(item.content)}</div>
+          ${item.password ? '<span class="lock-badge">🔒</span>' : ''}
+          <div class="file-icon">📝</div>
+          <div class="file-title">${escapeTxt(item.title)}</div>
+          <div class="file-meta">${item.time}</div>
         `;
-        container.appendChild(card);
+        card.onclick = () => openFile(item);
+        grid.appendChild(card);
       });
     }
 
-    function deleteMemo(id) {
-      if (!confirm('삭제하시겠습니까?')) return;
-      let list = getStorage('myMemos');
-      list = list.filter(item => item.id !== id);
-      setStorage('myMemos', list);
-      renderMemos();
-    }
-
-    // --- 스토리지 유틸 함수 ---
-    function getStorage(key) {
-      try {
-        return JSON.parse(localStorage.getItem(key) || '[]');
-      } catch (e) {
-        return [];
+    // 파일 열기 (비밀번호가 있으면 확인 후 상세 보기로 이동)
+    function openFile(item) {
+      if (item.password) {
+        const inputPw = prompt('이 파일은 잠겨있습니다. 비밀번호를 입력하세요:');
+        if (inputPw !== item.password) {
+          alert('비밀번호가 틀렸습니다!');
+          return;
+        }
       }
+
+      currentOpenItem = item;
+      document.getElementById('mainView').style.display = 'none';
+      document.getElementById('detailView').style.display = 'block';
+
+      document.getElementById('detailTitleText').innerText = item.title;
+      document.getElementById('detailDateText').innerText = item.date || item.time;
+      document.getElementById('detailContentText').innerText = item.content;
+
+      document.getElementById('deleteFileBtn').onclick = () => deleteFile(item.id, item.type);
     }
 
-    function setStorage(key, data) {
-      try {
-        localStorage.setItem(key, JSON.stringify(data));
-      } catch (e) {
-        console.warn('저장소 접근 제한');
+    function deleteFile(id, type) {
+      if (!confirm('정말 이 파일을 삭제하시겠습니까?')) return;
+
+      if (type === 'diary') {
+        let list = getLocal('myDiaries');
+        list = list.filter(i => i.id !== id);
+        setLocal('myDiaries', list);
+      } else {
+        let list = getLocal('myMemos');
+        list = list.filter(i => i.id !== id);
+        setLocal('myMemos', list);
       }
+      goHome();
     }
 
-    // 보안 처리
+    // 로컬 스토리지 유틸
+    function getLocal(key) {
+      try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; }
+    }
+    function setLocal(key, data) {
+      try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+    }
+
     function escapeTxt(str) {
       return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
